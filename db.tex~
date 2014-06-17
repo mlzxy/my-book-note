@@ -1,0 +1,211 @@
+\documentclass[10pt,a4paper]{beamer}
+\usepackage[CJKchecksingle,CJKnumber]{xeCJK}
+\setCJKmainfont[BoldFont={Adobe Kaiti Std},
+ItalicFont={Adobe Kaiti Std}]{Adobe Song Std}
+\setCJKsansfont{Adobe Kaiti Std}
+\setCJKmonofont{Adobe Fangsong Std}
+\usetheme{Boadilla}
+\punctstyle{hangmobanjiao}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{float}
+\usepackage{amssymb}
+\usepackage{makeidx}
+\usepackage{graphicx}
+\renewcommand{\contentsname}{目录}
+\renewcommand{\listfigurename}{插图目录}
+\renewcommand{\listtablename}{表格目录}
+% \renewcommand{\refname}{参考文献}
+\renewcommand{\abstractname}{内容概述}
+\renewcommand{\indexname}{索引}
+\renewcommand{\tablename}{表}
+\renewcommand{\figurename}{图}
+\newtheorem{shortcoming}{缺点}
+\begin{document}
+\title{小波在图像处理中的一些应用}
+\date{\today}
+\author{杨万山,付钟奇,张鑫语\newline}
+\maketitle
+% \tableofcontents
+
+\section{2维小波简介}
+\begin{frame}{原先的1D小波变换}
+  \centering
+  \includegraphics[width=.3\linewidth]{./graphviz/1dwave.png}
+  \begin{itemize}
+  \item 一维的多分辨率尺度关系 \\
+  \item  $ \phi(2x-k) = \frac{1}{2} (\sum_{l \in Z}^{} p_{k-2l}\phi(x-l) + (-1)^{k}p_{1-k+2l}\psi(x-l))$ \\
+  \item  $ V_{i-1} \bigcup W_{i-1} \in V_i$
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{同理可以推广到二维}
+  \begin{columns}
+    \begin{column}{0.5\linewidth}
+      \emph{一些改变} \\
+      \begin{itemize}
+      \item 需要在三个方向,平行,垂直,对角线分别多尺度 \\
+      \item 横向坐标和纵向坐标分别考虑 \\
+      \item $\phi(\bf{x}) = \phi(x_1)\phi(x_2)$
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.5\linewidth}
+      \includegraphics[width=.5\linewidth]{./graphviz/2dwave.png}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+
+\begin{frame}{More about 2D wavelet}
+  \begin{itemize}
+  \item $\phi_{j,k}(\bf{x}) = \phi_{jk_1}(x_1)\phi_{jk_2}(x_2) = 2^j\phi(2^j\bf{x}-\bf{k})$
+  \item
+    \begin{itemize}
+    \item $\psi^1(\bf{x})=\phi(x_1)\psi(x_2)$
+    \item  $\psi^2(\bf{x})=\psi(x_1)\phi(x_2)$
+    \item  $ \psi^3(\bf{x})=\psi(x_1)\psi(x_2)$
+    \end{itemize}
+  \item $\phi(\bf{x}) = \sum_{\bf{k}\in Z^2}^{} \bf{p_k}\phi(2\bf{x}-\bf{k}) $ 其中$\bf{p_k} = p_{k1}p_{k2}$
+  \item \[\psi^{\lambda}(\bf{x}) = \sum_{\bf{k}}^{}\bf{q_k^{\lambda}}\phi(2\bf{x}-\bf{k})$ 其中 $\bf{q_k^{\lambda}}=
+    \begin{cases}
+      & p_{k1}q_{k2} \text{ if } \lambda = 1 \\
+      & q_{k1}p_{k2} \text{ if } \lambda = 2 \\
+      & q_{k1}q_{k2} \text{ if } \lambda = 3 \\
+    \end{cases}\]
+  \item $\phi^{\lambda}(2\bf{x}-\bf{k})=\frac{1}{4}\sum_{\bf{l}\in Z^2}(\bf{p_{\bf{k-2l}}}\phi(2\bf{x}-\bf{l}) + \sum_{\lambda = 1}^{3}\bf{q^{\lambda}_{\bf{k-2l}}\psi^{\lambda}(x-l)})$
+  \end{itemize}
+\end{frame}
+% 图像的Peak Signal to Noise Ratio
+% bit rates :表达一pixel，所需的bit值
+\section{图像压缩算法介绍}
+\subsection{EZW零树压缩算法}
+
+\begin{frame}{何为EZW压缩算法}
+  \begin{figure}[H]
+    \centering
+    \includegraphics[width=.4\linewidth,height=.4\paperheight]{./graphviz/0.jpg}
+    \includegraphics[width=.4\linewidth]{./graphviz/tree.jpg}
+    \caption{0 和 树}
+  \end{figure}
+  \begin{description}
+  \item [E] Embeded---在这里表示Progressive的意思，增量编码
+  \item [Z] Zero-Tree---表示用到的一种自称零树的数据结构
+  \item [W] Wavelet---应用到小波变换
+  \end{description}
+\end{frame}
+
+\begin{frame}{Observation}
+  \begin{columns}
+    \begin{column}{.6\linewidth}
+      \begin{figure}[H]
+        \centering
+        \includegraphics[width=.6\linewidth]{./graphviz/xbbh.jpeg}
+        \caption{图像小波变换实例}
+      \end{figure}
+      \begin{figure}[H]
+        \centering
+        \includegraphics[width=.5\linewidth]{./graphviz/lingshu.png}
+      \end{figure}
+
+    \end{column}
+    \begin{column}{.4\linewidth}
+      \emph{几点观察}
+      \begin{itemize}
+      \item LL部份值比较大，而高频部份值比较小,显然值大的更重要
+      \item 不同的区域虽代表不同频率，但在同一个相对位置上，代表图像的相似方位
+      \item 如果在低频的相关位置小波值很小，高频就更小，以至于不用考虑
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{如何构造零树}
+  \begin{columns}
+    \begin{column}{.6\linewidth}
+      \centering
+      \includegraphics[width=.6\linewidth]{./graphviz/lizi.png}
+    \end{column}
+    \begin{column}{.4\linewidth}
+      \begin{enumerate}
+      \item 先取一个阈值T
+      \item 按照特定顺序遍历图像（不是贪婪）
+      \item 对于每个节点，3种情况处理
+        \begin{enumerate}
+        \item Significant (POS NEG)
+        \item IL isolated Zero
+        \item ZTR Zero-Tree-Root
+        \end{enumerate}
+      \end{enumerate}
+    \end{column}
+  \end{columns}
+\end{frame}
+\begin{frame}{More about Zero-Tree Construction}
+      \centering
+      \includegraphics[width=.5\linewidth]{./graphviz/lizi2.png}
+      \begin{itemize}
+      \item  有选择性地使用一定bits来逼近这些Significant值，T+0.5T+0.25T...,精度可控 \newline
+      \item 之后把这些Significant的值置零，阈值除二，继续遍历
+      \end{itemize}
+    \end{frame}
+\begin{frame}{算法流程}
+  \begin{enumerate}
+  \item Wavelet Transform \newline
+  \item Iterate and construct Zero-Tree \newline
+  \item Encoding (Huffman etc..) \newline
+  \item 知易行难...
+  \end{enumerate}
+\end{frame}
+\subsection{Naive压缩算法}
+\begin{frame}{简单方法}
+  \begin{columns}
+    \begin{column}{.5\linewidth}
+      \emph{流程}
+      \begin{itemize}
+      \item  先作小波变换，使值的分布compact
+      \item  由噪声选取门限，低于门限置零，高的不变
+      \item  直接调用matlab中wavecbm2来获得门限
+      \end{itemize}
+    \end{column}
+    \begin{column}{.5\linewidth}
+      \centering
+      \includegraphics[width=.5\linewidth]{./graphviz/naive.jpg}
+    \end{column}
+  \end{columns}
+\end{frame}
+\subsection{jpeg压缩算法}
+\begin{frame}{jpeg简单介绍}
+  \begin{figure}[H]
+    \centering
+    \includegraphics[width=.5\linewidth,height=.7\paperheight]{./graphviz/jpeg.png}
+    \caption{jpeg编码流程}
+  \end{figure}
+\end{frame}
+\subsection{压缩效果比对}
+\begin{frame}{Compare}
+  \begin{columns}
+    \begin{column}{.5\linewidth}
+      \begin{figure}[H]
+        \centering
+        \includegraphics[width=.5\linewidth]{./graphviz/lena.jpeg}
+        \caption{jpg效果 60k-->12k}
+      \end{figure}
+    \end{column}
+    \begin{column}{.5\linewidth}
+      \begin{figure}[H]
+        \centering
+        \includegraphics[width=.5\linewidth]{./graphviz/lena.jpg}
+        \caption{EZW效果 60k-->19k}
+      \end{figure}
+    \end{column}
+  \end{columns}
+\emph{结论}
+\begin{itemize}
+\item 一定是我打开的方式不对！！
+\item 这里的EZW方法无Huffman或其他方式继续编码
+\item 没有作继续编码会有很大影响
+\end{itemize}
+\end{frame}
+
+
+
+\end{document}

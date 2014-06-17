@@ -1,0 +1,145 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[CJKchecksingle,CJKnumber]{xeCJK}
+\setCJKmainfont[BoldFont={Adobe Kaiti Std},
+ItalicFont={Adobe Kaiti Std}]{Adobe Song Std}
+\setCJKsansfont{Adobe Kaiti Std}
+\setCJKmonofont{Adobe Fangsong Std}
+\punctstyle{hangmobanjiao}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{float}
+\usepackage{amssymb}
+\usepackage{makeidx}
+\usepackage{graphicx}
+\renewcommand{\contentsname}{目录}
+\renewcommand{\listfigurename}{插图目录}
+\renewcommand{\listtablename}{表格目录}
+% \renewcommand{\refname}{参考文献}
+\renewcommand{\abstractname}{内容概述}
+\renewcommand{\indexname}{索引}
+\renewcommand{\tablename}{表}
+\renewcommand{\figurename}{图}
+\newtheorem{shortcoming}{缺点}
+\newtheorem{question}{疑问}
+\newtheorem{thought}{想法}
+\begin{document}
+\title{A Framework for Hand Gesture Recognition Based on Accelerometer and EMG Sensors \newline 读书报告}
+\date{\today}
+% \author{杨万山,付钟奇,张鑫语\newline}
+\maketitle
+% \tableofcontents
+\paragraph{报告大致内容}
+在这里先尝试整体描述一遍论文中所讲的识别字体的方法流程，之后在按照顺序对每个流程写一下自己的理解和想法，最后再写一点感想。
+
+\paragraph{方法流程}
+\begin{description}
+\item [step0] 最基本的要有ACC和EMG传感器的数据采集，不过感觉每次肯定都要戴在非常相同的位置上呀。
+\item [step1] 对EMG所采集到的数据利用\emph{sliding window}来进行分段，确定在哪一段时间用户是在写字。
+\item [step2] 提取ACC和EMG在用户活跃的阶段所收集的数据，对数据做一些变换以使数据特性更加明显. \\ 这里对ACC的加速度数据进行了正规化(使每段都为固定长度，因为EMG数据要与ACC数据每段尽量相对应，所以必然有一个需要作出一些修整)。对EMG数据进一步分段，还对每段先经过一个Hamming window来减小不连续性所带来的频谱混叠，并还通过了一个离散AR系统。
+\item [step3] 利用决策树的思想来对数据空间进行划分(缩小的空间有利于HMM来找到更准确的答案，否则如此小的数据量，如此大的搜索空间，太容易overfitting了) \newline
+\begin{itemize}
+\item 先根据手臂是否移动 (dynamic or static)
+\item 再根据动作维持时间的长短 (short or long duration)
+\item 再利用fuzzy Knn的方法来判别相关动作手的方向
+\end{itemize}
+\subparagraph{}
+其实原文并没有很显示地说明这里要对数据空间做划分，更像是在说利用这几个分类器得到的特征都当做特征向量中的一元，而自己感觉这样很不舒服，因为这些特征本来就揭示了数据中的一些\emph{Hiearchy}，当做特征向量中一元很可能被埋没。
+\subparagraph{}
+而且文中的那三种特征粒度完全不同，前两个粒度大，比如我写这个字是手臂会不会动，时间长短。而第三个粒度小，写一个字时手掌方向可以各种变化，所以倾向认为前两个主要用来划分数据，后一个主要作为HMM的input data stream.(当然前两个同时也可以作为input data vecotr).
+
+\item [step4] 将特征数据输入HMM，不过自己觉得这里的HMM明显和正常的HMM有区别
+\begin{enumerate}
+\item 这里是有EMG和ACC两列(或多列)数据，所以需要特殊处理(或者是换一个想法)
+\item 还有一点，就是正常的HMM每个数据点是1*1维度的，而文章并没有指明这里输入的input stream是个什么类型，让我猜的话应该是方向或者其他什么的，但一定要保证是1*1，数据要多维的话，就增加一个HMM stream
+\end{enumerate}
+\end{description}
+
+\paragraph{每个步骤的单独理解}
+前面大致写下了自己对论文所讲的方法的流程，当然其中也加入了一些自己的想法(当然理解很有可能比较偏差) 下面对每个步骤单独详细地写一下理解和想法。
+
+
+\subparagraph{数据分段}
+首先说一下数据的分段吧，这里面用了非常简单的方法，先摆出公式。
+\[
+EMG_{avg} = \sum_{c=2}^{N_c}EMG_C(t)
+\]
+\[
+E_{MA}(t) = \dfrac{1}{W} \sum_{i = t-W+1}^{t}EMG_{avg}^2(i)
+\]
+将多个channel的数据累加,根据一段时间内幅值平方和的大小来判断,显然这个方式是有很多优点的。
+\begin{itemize}
+\item 十分简单易行，对于很多问题，找到能满足需求的最廉价而不是最\emph{fancy}解法是最好的。
+\item 显然可以基本上检测出长度大于W的有效信号，只要W合理，Really get the work done.
+\end{itemize}
+\begin{thought}
+我感觉这样处理虽然肯定能够把EMG信号基本上准确分块，而且这样做有很大好处，它基本将每个字（或英语中的词）的书写分隔开，这样直接对应后面的决策树的使用，而决策树的作用----数据空间分解，显然是十分重要的。
+由此可见EMG信号分块是多么的 \emph{essential} . \\
+
+但是文中的方法只对EMG信号做了分段，而利用EMG信号的分段作为基础，来对ACC信号做32点的正规化，自己觉得可以对ACC信号提高重视，也应该做一些分段类的工作
+
+\subparagraph
+因为ACC信号直接对应运动轨迹，而拿中文的书写来打比方。
+虽然中文字极多极复杂，但书写方法是相对很有限的（都是一横一竖，一撇一捺），如果将ACC信号能够对每个子动作进行分割，感觉上会非常好(其实在文中方法里也很大一部分隐含了这种想法，就是类似KNN中所学习出的方向，就好像用一组基来表示一个字)，而显然如果ACC没有分好块，那么很可能会取得差一些的效果。  \newline
+
+
+(其实感觉已经开始纯瞎想了)而按照这种设想，如果能够利用ACC的分块对应不同书写方法，来模拟笔的运动轨迹，那当然是再好不过了。首先，一些手写识别就是基于轨迹的方法，可以借鉴他们的想法。 而且文中所给方法中的ACC-HMM，相当于把所有方向序列作为一个$1*N$的观测序列，而显然，书写一个汉字，汉字是个方块，如果有一定的轨迹信息，那么就相当于从整体看这个书写过程，应该可以减少一些信息量的损失。
+而且那样传入HMM的序列就不是方向序列而是类似于{横，竖，点...},或许这个序列会更靠谱一点。
+\end{thought}
+
+不过自己还从来没真正见过用过ACC传感器，而且如果真的可以模拟出部分动作轨迹信息，可能又需要做很多操作方法上的修改，所以还只是一个非常\emph{naive}的想法。\\
+\subparagraph{}
+不过如果模拟动作的话显然不只是需要ACC信号，而是EMG信号也要参与，因为感觉这个问题的主要信息源是ACC，EMG，还有他们之间的联系，而好像并没有在论文中发现太多明显寻找两者之间联系的方法。
+就是HMM也是分开去做的，感觉这很值得思考，不过应该需要很绞尽脑汁和美丽的模型。
+\subparagraph{} EMG信号如果能用一组小波基来离散表示，用条件随机场以时间为基准结合两个信号还是有可能的，而且都离散表示也没有幅值问题了，不过对条件随机场忘了不少，一会要再看看。而且这样好像还更加
+user-independent了。
+
+
+\subparagraph{关于EMG信号做的变换}
+文中说对信号再做Hamming窗截断，来抑制高频干扰，之后通过一个4阶AR模型。\\ 不过自己略觉得这个4阶的离散系统就是个低通滤波器，用来去噪等等作用。不过这里显然如果不同用户，不同环境，噪声是不同的（把不同用户带来的一些差别也当做噪声无妨）.
+\begin{thought}
+这学期我们刚学完信号统计分析，觉得或许可以用一些
+自适应滤波的方法来对信号做处理，比如windrow and Hoff 最小均方自适应滤波方法，自己只是在这学期的EDA实验中用过，比较感兴趣就去查原理了，发现有很多自适应的滤波方法。显然，肯定是各有千秋，
+真正实战的时候应该需要比较多的分析和思考。
+\end{thought}
+
+
+\subparagraph{关于决策树}
+关于决策树，感觉文中所提出的的思想非常的重要，利用关键的数据特征降低决策空间，感觉是非常高明的举动。很多想法写在前面了。
+
+\subparagraph{关于\emph{Multistream HMM}}
+略觉得这里的MHMM方法有一点缺憾（当然主要是这个问题确实比较难）就是它并没有很充分地利用两中信号ACC，EMG之间的联系，只是简单地加了一个权，感觉有点不充分
+，而前面已经提到这是重要的信息源头。但自己觉得还是要从序列检测的思想入手，因为毕竟动作是有很强的顺序性的，不能简单地把问题建模为一个输入向量$V1$输出$w=0,1,2,3,4...$的这种问题.
+
+\subparagraph{}
+这里还要提一下HMM的训练，自己看到后面的一些experiment result，觉得HMM训练还是用的标号数据，
+这样训练相对另一种方法简单多了。
+
+
+\paragraph{自己的一些其他想法}
+\subparagraph{内疚，道歉}
+说实在的，心里很内疚，大概期中的时候去找的您，而您给我论文后，我却一直没跟您联系，自己感到非常后悔，就好像辜负了您。
+原因主要是这学期选课比较多，期末15号考完的，考试持续了挺长一段时间，真的感觉复习要
+疯了，而之前也压力略大，因为不敢再拉下都这么难的课了，还考了次托福，好在这次托考的不错，不用再重刷分了。 
+\subparagraph{}
+不过自己还是在课余看了一点儿计算机方面的书，开源代码和人文类的公开课。。。等等 \\\\
+这里觉得需要解释一下，并不是觉得那些东西在当下阶段比看论文重要，而是他们的事物特征使他们更容易fit into自己的生活节奏，更好理解，人文类公开课
+更像像休息，不需要整块的长时间，可以一边吃饭一边看等等。。。 
+\subparagraph{}
+另外自己还是有点后悔在这学期选课选多了，因为如果有更多时间可以在实验室里多做事情，一样可以学知识，并且实验室经历明显是自己更缺乏的。但毕竟事情都过去了，好坏这东西
+谁知道呢，都是\emph{history}了，应当关注眼前的事情，不过大四选课时不能在这样抽风了。\\
+\subparagraph{兴趣，计划}
+正所谓知错就改，自己感觉对这方面是非常有兴趣的(诚实的说，比上一个实验室看的推荐系统有意思多了),很希望能大四在您那里多做一些事情，还是很喜欢搬砖码代码的。\\
+另外很不幸的是这个暑假\textbf{自己的实体}(好别扭)没有办法去实验室，因为6月22日就要去交流了，8月17日才能回来。。。
+
+\subparagraph{瞎想}
+这里又是开始白日梦了。。。自己发现一种现象，很多学生包括自己，都会平时写很多字,作业啦，复习总结啦，数学推导啦，一些想法啦等等，而且很多人都认为
+用纸写东西比在电脑上打字更加利于思考，尤其是做数学物理的时候，但是很多时候写在纸上本上，没地方放，或比较懒散，过后考完就扔掉了。自己很多的想法，对学科的理解的记录，都扔掉了。
+非常可惜，因为说不定有一天又会用到。所以自己觉得或许可以做一只笔，用这个笔写字，它会把数据通过\emph{internet}传到云端，之后云端或是字体识别也好或是怎样，总之以某种格式存储下来你所写下的东西。
+到时本子丢了，自己还可以再看到自己的工作，这样可能会非常好，而且笔记什么的，也不怕丢了. \\\\
+当然这只是一时设想，还没什么思路，实现需要很多心血和工作。
+
+
+
+\paragraph{\emph{The End}}
+写到这里快结束了，感觉胡话连篇*\_* ，花您这么多精力来看，真是麻烦您了，多谢您。
+\end{document}
